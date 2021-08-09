@@ -1,0 +1,6 @@
+checkpoints/
+apex/
+data/
+pretrained_models/
+results/
+tensorboard/
