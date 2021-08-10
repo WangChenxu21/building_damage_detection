@@ -551,20 +551,20 @@ class HighResolutionNetDouble(nn.Module):
 
         last_inp_channels = np.int(np.sum(pre_stage_channels))
 
-        self.dec1 = ConvRelu(last_inp_channels, int(last_inp_channels / 2))
-        self.dec2 = ConvRelu(int(last_inp_channels / 2), int(last_inp_channels / 4))
+        self.dec1 = ConvRelu(int(last_inp_channels), int(last_inp_channels / 4))
+        self.dec2 = ConvRelu(int(last_inp_channels / 4), int(last_inp_channels / 8))
 
         self.last_layer = nn.Sequential(
             nn.Conv2d(
                 in_channels=int(last_inp_channels / 4),
-                out_channels=int(last_inp_channels / 4),
+                out_channels=int(last_inp_channels / 8),
                 kernel_size=1,
                 stride=1,
                 padding=0),
-            BatchNorm2d(int(last_inp_channels / 4), momentum=BN_MOMENTUM),
+            BatchNorm2d(int(last_inp_channels / 8), momentum=BN_MOMENTUM),
             nn.ReLU(inplace=relu_inplace),
             nn.Conv2d(
-                in_channels=int(last_inp_channels / 4),
+                in_channels=int(last_inp_channels / 8),
                 out_channels=config['DATASET']['NUM_CLASSES'],
                 kernel_size=extra['FINAL_CONV_KERNEL'],
                 stride=1,
@@ -700,8 +700,8 @@ class HighResolutionNetDouble(nn.Module):
 
         x = torch.cat([x[0], x1, x2, x3], 1)
 
-        x = self.dec1(x)
-        x = self.dec2(x)
+        x = self.dec1(F.interpolate(x, scale_factor=2))
+        x = self.dec2(F.interpolate(x, scale_factor=2))
 
         return x
 

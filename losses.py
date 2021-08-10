@@ -1,8 +1,10 @@
 import numpy as np
+
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.autograd import Variable
+from torch.nn import NLLLoss2d
 
 try:
     from itertools import ifilterfalse
@@ -273,3 +275,74 @@ class FocalLoss2d(nn.Module):
         targets = torch.clamp(targets, eps, 1. - eps)
         pt = (1 - targets) * (1 - outputs) + targets * outputs
         return (-(1. - pt) ** self.gamma * torch.log(pt)).mean()
+
+
+class FocalLossWithDice(nn.Module):
+    def __init__(self, num_classes, ignore_index=255, gamma=2, ce_weight=1., d_weight=0.1, weight=None, size_average=True, ohpm=False, ohpm_pixels=128*128):
+        super(FocalLossWithDice, self).__init__()
+
+        self.num_classes = num_classes
+        self.d_weight = d_weight
+        self.ce_weight = ce_weight
+        self.gamma = gamma
+        if weight is not None:
+            weight = torch.Tensor(weight).float()
+        self.nll_loss = NLLLoss2d(weight, size_average, ignore_index=ignore_index)
+        self.ignore_index =  ignore_index
+        self.ohpm = ohpm
+        self.ohpm_pixels = ohpm_pixels
+
+    def forward(self, outputs, targets):
+        probas = F.softmax(outputs, dim=1)
+        ce_loss = self.nll_loss((1 - probas) ** self.gamma * F.log_softmax(outputs, dim=1), targets)
+        d_loss = soft_dice_loss_mc(outputs, targets, self.num_classes, ignore_index=self.ignore_index, ohpm=self.ohpm, ohpm_pixels=self.ohpm_pixels)
+        non_ignored = targets != 255
+        loc = soft_dice_loss(1 - probas[:, 0, ...][non_ignored], targets[non_ignored])
+        
+        return self.ce_weight * ce_loss + self.d_weight * d_loss + self.d_weight * loc
+
+
+def soft_dice_loss_mc(outputs, targets, num_classes, per_image=False, only_existing_classes=False, ignore_index=255,
+                      minimum_class_pixels=10, reduce_batch=True, ohpm=True, ohpm_pixels=16384):
+    batch_size = outputs.size()[0]
+    eps = 1e-5
+    outputs = F.softmax(outputs, dim=1)
+
+    def _soft_dice_loss(outputs, targets):
+        loss = 0 
+        non_empty_classes = 0 
+        for cls in range(1, num_classes):
+            non_ignored = targets.view(-1) != ignore_index
+            dice_target = (targets.view(-1)[non_ignored] == cls).float()
+            dice_output = outputs[:, cls].contiguous().view(-1)[non_ignored]
+            if ohpm:
+                loss_b = torch.abs(dice_target - dice_output)
+                px, indc = loss_b.topk(ohpm_pixels)
+                dice_target = dice_target[indc]
+                dice_output = dice_output[indc]
+
+            intersection = (dice_output * dice_target).sum()
+            if dice_target.sum() > minimum_class_pixels:
+                union = dice_output.sum() + dice_target.sum() + eps 
+                loss += (1 - (2 * intersection + eps) / union)
+                non_empty_classes += 1
+        if only_existing_classes:
+            loss /= (non_empty_classes + eps)
+        else:
+            loss /= (num_classes - 1)
+        return loss
+
+    if per_image:
+        if reduce_batch:
+            loss = 0 
+            for i in range(batch_size):
+                loss += _soft_dice_loss(torch.unsqueeze(outputs[i], 0), torch.unsqueeze(targets[i], 0)) 
+            loss /= batch_size
+        else:
+            loss = torch.Tensor(
+                [_soft_dice_loss(torch.unsqueeze(outputs[i], 0), torch.unsqueeze(targets[i], 0)) for i in
+                 range(batch_size)])
+    else:
+        loss = _soft_dice_loss(outputs, targets)
+
+    return loss

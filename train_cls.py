@@ -19,8 +19,8 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import dice, AverageMeter
 from adamw import AdamW
 from dataset import xBDDataset
-from models.hrnet import get_seg_model
-from losses import dice_round, ComboLoss
+from models.hrnet import get_seg_model_double
+from losses import dice_round, ComboLoss, FocalLossWithDice
 
 
 train_iter = 0
@@ -44,10 +44,18 @@ def validate(model, data_loader, epoch, predictions_dir):
             out = model(pre_image, post_image)
 
             damage_preds = torch.softmax(output, dim=1).cpu().numpy()
+            loc_preds = 1 - torch.sigmoid(out[:, 0, ...])
 
-            for j in range(output.shape[0]):
-                damage_pred = damage_preds[j]
-                argmax = np.argmax(damage_pred, axis=0)
+            for i in range(output.shape[0]):
+                damage_pred = damage_preds[i]
+                damage_pred = np.argmax(damage_pred, axis=0)
+                loc_pred = loc_preds[i]
+                loc_pred = (loc_pred[i] > 0.5)
+                print('damage_pred:', damage_pred.shape)
+                print('loc_pred:', loc_pred.shape)
+                assert False
+
+                cv2.imwrite(os.path.join(preds_dir, "test_damage_" + sample["img_name"][i] + "_prediction.png"), argmax)
 
     dice_avg = np.mean(dices)
     writer.add_scalar('dice/val', dice_avg, epoch)
@@ -56,19 +64,20 @@ def validate(model, data_loader, epoch, predictions_dir):
     return dice_avg
 
 
-def evaluate(data_loader, best_score, model, snapshot_name, current_epoch):
+def evaluate(data_loader, best_score, model, snapshot_name, current_epoch, predictions_dir):
     model = model.eval()
 
-    d = validate(model, data_loader, current_epoch)
-    if d > best_score:
+    dice, xview_score = validate(model, data_loader, current_epoch, predictions_dir)
+    if xview_score > best_score:
         torch.save({
             'epoch': current_epoch + 1,
             'state_dict': model.state_dict(),
-            'best_score': d,
-            }, os.path.join('checkpoints', snapshot_name + '_{}'.format(d)))
-        best_score = d
+            'dice': dice,
+            'xview_score': xview_score,
+            }, os.path.join('checkpoints', snapshot_name + '_{}'.format(xview_score)))
+        best_score = xview_score
 
-    print('score: {} best_score: {}'.format(d, best_score))
+    print('dice: {} xview_score: {} best_score: {}'.format(dice, xview_score, best_score))
     return best_score
 
 
@@ -82,7 +91,7 @@ def train_epoch(current_epoch, damage_loss, model, optimizer, scheduler, data_lo
     for sample in iterator:
         pre_image = sample["pre_image"].cuda(non_blocking=True)
         post_image = sample["post_image"].cuda(non_blocking=True)
-        post_mask = sample["post_mask"],cuda(non_blocking=True)
+        post_mask = sample["post_mask"].cuda(non_blocking=True)
 
         out = model(pre_image, post_image)
 
@@ -114,13 +123,14 @@ def train_epoch(current_epoch, damage_loss, model, optimizer, scheduler, data_lo
 def main(): 
     cudnn.benchmark = True
 
-    batch_size = 2
+    batch_size = 1
     val_batch_size = 4
 
-    snapshot_name = "hrnet_w48_loc"
+    snapshot_name = "hrnet_w48_cls"
     data_path = 'data/train/'
     folds_csv = 'folds.csv'
-    cfg_file = 'configs/hrnet_w48_train.yaml'
+    predictions_dir = 'predictions_val/'
+    cfg_file = 'configs/hrnet_w48_double_train.yaml'
     with open(cfg_file) as f:
         cfg_str = f.read()
     cfg = yaml.load(cfg_str, Loader=yaml.SafeLoader)
@@ -134,7 +144,7 @@ def main():
     train_data_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=5, shuffle=True, pin_memory=False, drop_last=True)
     val_data_loader = DataLoader(val_dataset, batch_size=val_batch_size, num_workers=5, shuffle=False, pin_memory=False)
 
-    model = get_seg_model(cfg).cuda()
+    model = get_seg_model_double(cfg).cuda()
 
     optimizer = AdamW(model.parameters(), lr=0.00015, weight_decay=1e-6)
 
@@ -142,16 +152,16 @@ def main():
 
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], gamma=0.5)
 
-    seg_loss = ComboLoss({'dice': 1.0, 'focal': 10.0}, per_image=False).cuda()
+    loss_fn = FocalLossWithDice(5, ce_weight=2, d_weight=0.5, weight=[1, 1, 5, 3, 3]).cuda()
 
     best_score = 0
     _cnt = -1
     torch.cuda.empty_cache()
     for epoch in range(16):
-        train_epoch(epoch, seg_loss, model, optimizer, scheduler, train_data_loader)
+        train_epoch(epoch, loss_fn, model, optimizer, scheduler, train_data_loader)
         _cnt += 1
         torch.cuda.empty_cache()
-        best_score = evaluate(val_data_loader, best_score, model, snapshot_name, epoch)
+        best_score = evaluate(val_data_loader, best_score, model, snapshot_name, epoch, predictions_dir)
 
     writer.close()
 

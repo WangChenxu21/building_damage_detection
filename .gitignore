@@ -4,3 +4,4 @@ data/
 pretrained_models/
 results/
 tensorboard/
+*bak

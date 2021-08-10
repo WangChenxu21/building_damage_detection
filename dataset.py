@@ -25,9 +25,16 @@ class xBDDataset(Dataset):
 
         self.df = pd.read_csv(self.folds_csv, dtype={'id': object})
         if self.mode == "train":
-            self.ids = self.df[self.df['fold'] != self.fold]['id'].tolist()
+            ids = self.df[self.df['fold'] != self.fold]['id'].tolist()
         elif self.mode == "val":
-            self.ids = self.df[self.df['fold'] == self.fold]['id'].tolist()
+            ids = self.df[self.df['fold'] == self.fold]['id'].tolist()
+
+        self.ids = []
+        for id in ids:
+            self.ids.append(id + '_1')
+            self.ids.append(id + '_2')
+            self.ids.append(id + '_3')
+            self.ids.append(id + '_4')
 
     def __len__(self):
         return len(self.ids)

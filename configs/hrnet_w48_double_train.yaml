@@ -1,7 +1,7 @@
 DATASET:
   NUM_CLASSES: 5
 MODEL:
-  NAME: seg_hrnet
+  NAME: hrnet
   ALIGN_CORNERS: False
   PRETRAINED: 'checkpoints/hrnet_w48_loc_0.8395404708116694'
   EXTRA:
