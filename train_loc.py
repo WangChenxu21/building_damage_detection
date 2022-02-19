@@ -18,6 +18,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from logger import create_logger
 from utils import dice, iou, AverageMeter
 from adamw import AdamW
 from dataset import xBDDataset
@@ -31,6 +32,10 @@ parser.add_argument('--epoch', type=int, help='total epoch num')
 parser.add_argument('--train_batch_size', type=int, help='batch size for train')
 parser.add_argument('--val_batch_size', type=int, help='batch size for val')
 args = parser.parse_args()
+
+## logger
+logger = create_logger(args.model)
+logger.info(f"configs:\n\tmodel: {args.model}\n\ttotal_epoch: {args.epoch}\n\ttrain_batch_size: {args.train_batch_size}\n\tval_batch_size: {args.val_batch_size}")
 
 ## tensorboard
 train_iter = 0
@@ -61,7 +66,6 @@ def validate(model, data_loader, epoch):
     iou_avg = np.mean(ious)
     writer.add_scalar('val/dice', dice_avg, epoch+1)
     writer.add_scalar('val/iou', iou_avg, epoch+1)
-    print(f"Val Dice: {dice_avg}, Val IoU: {iou_avg}")
 
     return dice_avg, iou_avg
 
@@ -79,6 +83,7 @@ def evaluate(data_loader, best_score, model, snapshot_name, current_epoch):
         )
         best_score = dice
 
+    logger.info(f"dice: {dice}, iou: {iou}, best_score: {best_score}")
     print(f"dice: {dice}, iou: {iou}, best_score: {best_score}")
     return best_score
 
@@ -90,8 +95,9 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
     dices = AverageMeter()
 
     model.train()
+    total_iter = len(data_loader)
     iterator = tqdm(data_loader)
-    for sample in iterator:
+    for iter, sample in enumerate(iterator):
         pre_image = sample["pre_image"].cuda(non_blocking=True)
         pre_mask = sample["pre_mask"].cuda(non_blocking=True)
 
@@ -116,6 +122,9 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
         writer.add_scalar('train/dice', dices.val, train_iter)
         train_iter += 1
 
+        logger.info(
+            "epoch: {}; iter: {}({:.3f}); lr {:.7f}; Loss {loss.val:.4f} ({loss.avg:.4f}); Dice {dice.val:.4f} ({dice.avg:.4f})".format(
+                current_epoch, iter, iter / total_iter, scheduler.get_lr()[-1], loss=losses, dice=dices))
         iterator.set_description(
             "epoch: {}; lr {:.7f}; Loss {loss.val:.4f} ({loss.avg:.4f}); Dice {dice.val:.4f} ({dice.avg:.4f})".format(
                 current_epoch, scheduler.get_lr()[-1], loss=losses, dice=dices))
@@ -129,9 +138,6 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
         optimizer.step()
 
     scheduler.step(current_epoch)
-
-    print("epoch: {}; lr {:.7f}; Loss {loss.avg:.4f}; Dice {dice.avg:.4f}".format(
-                current_epoch, scheduler.get_lr()[-1], loss=losses, dice=dices))
  
 
 def main(): 
@@ -166,6 +172,7 @@ def main():
     best_score = evaluate(val_data_loader, 0, model, snapshot_name, -1)
     torch.cuda.empty_cache()
     for epoch in range(args.epoch):
+        logger.info(f"now start epoch {epoch}...")
         train_epoch(epoch, seg_loss, model, optimizer, scheduler, train_data_loader)
         torch.cuda.empty_cache()
         best_score = evaluate(val_data_loader, best_score, model, snapshot_name, epoch)

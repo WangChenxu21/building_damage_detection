@@ -6,3 +6,4 @@ predictions*/
 results/
 tensorboard/
 *bak
+logs/
