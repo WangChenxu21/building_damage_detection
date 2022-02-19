@@ -29,13 +29,18 @@ from losses import dice_round, ComboLoss
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, help='seresnext50 or dpn92 or res34 or senet154')
 parser.add_argument('--epoch', type=int, help='total epoch num')
+parser.add_argument('--milestones', nargs='+', type=int, help='milestones for reducing lr')
 parser.add_argument('--train_batch_size', type=int, help='batch size for train')
 parser.add_argument('--val_batch_size', type=int, help='batch size for val')
 args = parser.parse_args()
 
 ## logger
 logger = create_logger(args.model)
-logger.info(f"configs:\n\tmodel: {args.model}\n\ttotal_epoch: {args.epoch}\n\ttrain_batch_size: {args.train_batch_size}\n\tval_batch_size: {args.val_batch_size}")
+configs = 'configs:\n'
+for k in list(vars(args).keys()):
+    configs += '\t%s: %s\n' % (k, vars(args)[k])
+logger.info(configs)
+print(configs)
 
 ## tensorboard
 train_iter = 0
