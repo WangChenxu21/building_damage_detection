@@ -18,7 +18,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import dice, AverageMeter
+from utils import dice, iou, AverageMeter
 from adamw import AdamW
 from dataset import xBDDataset
 from builder import build_loc_model
@@ -39,6 +39,7 @@ writer = SummaryWriter(log_dir)
 
 def validate(model, data_loader, epoch):
     dices = []
+    ious = []
     _thr = 0.5
 
     with torch.no_grad():
@@ -54,28 +55,31 @@ def validate(model, data_loader, epoch):
 
             for j in range(mask_pred.shape[0]):
                 dices.append(dice(pre_mask[j], mask_pred[j] > _thr))
+                ious.append(iou(pre_mask[j], mask_pred[j] > _thr))
 
     dice_avg = np.mean(dices)
+    iou_avg = np.mean(ious)
     writer.add_scalar('dice/val', dice_avg, epoch+1)
-    print("Val Dice: {}".format(dice_avg))
+    writer.add_scalar('iou/val', iou_avg, epoch+1)
+    print(f"Val Dice: {dice_avg}, Val IoU: {iou_avg}")
 
-    return dice_avg
+    return dice_avg, iou_avg
 
 
 def evaluate(data_loader, best_score, model, snapshot_name, current_epoch):
     model = model.eval()
 
-    d = validate(model, data_loader, current_epoch)
-    if d > best_score:
+    dice, iou = validate(model, data_loader, current_epoch)
+    if dice > best_score:
         torch.save({
             'epoch': current_epoch,
             'state_dict': model.state_dict(),
-            'best_score': d,
-            }, os.path.join('checkpoints', f'{snapshot_name}_{current_epoch}_{round(d, 3)}')
+            'best_score': dice,
+            }, os.path.join('checkpoints', f'{snapshot_name}_{current_epoch}_{round(dice, 3)}')
         )
-        best_score = d
+        best_score = dice
 
-    print('score: {} best_score: {}'.format(d, best_score))
+    print(f"dice: {dice}, iou: {iou}, best_score: {best_score}")
     return best_score
 
 
