@@ -1,10 +1,11 @@
-from .models import SeResNext50_Unet_Loc, SeResNext50_Unet_Double, \
-                   Dpn92_Unet_Loc, Dpn92_Unet_Double, \
-                   Res34_Unet_Loc, Res34_Unet_Double, \
-                   SeNet154_Unet_Loc, SeNet154_Unet_Double
+from .seresnext_unet import SeResNext_Loc, SeResNext_Double
+from .dpn_unet import Dpn_Loc, Dpn_Double
+from .resnet_unet import ResNet_Loc, ResNet_Double
+from .senet_unet import SeNet_Loc, SeNet_Double
 
-__all__ = ["SeResNext50_Unet_Loc", "SeResNext50_Unet_Double", \
-           "Dpn92_Unet_Loc", "Dpn92_Unet_Double", \
-           "Res34_Unet_Loc", "Res34_Unet_Double", \
-           "SeNet154_Unet_Loc", "SeNet154_Unet_Double", \
+
+__all__ = ["SeResNext_Loc", "SeResNext_Double", \
+           "Dpn_Loc", "Dpn_Double", \
+           "ResNet_Loc", "ResNet_Double", \
+           "SeNet_Loc", "SeNet_Double", \
 ]
