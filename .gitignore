@@ -1,7 +1,8 @@
 checkpoints/
 apex/
-data/
-pretrained_models/
+data*/
+pretrained/
+predictions*/
 results/
 tensorboard/
 *bak

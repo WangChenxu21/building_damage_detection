@@ -3,8 +3,10 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 import random
+import argparse
+import warnings
+warnings.filterwarnings('ignore')
 
-import yaml
 import numpy as np
 from tqdm import tqdm
 from apex import amp
@@ -19,12 +21,20 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import dice, AverageMeter
 from adamw import AdamW
 from dataset import xBDDataset
-from models.hrnet import get_seg_model
+from builder import build_loc_model
 from losses import dice_round, ComboLoss
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', type=str, help='seresnext50 or dpn92 or res34 or senet154')
+parser.add_argument('--epoch', type=int, help='total epoch num')
+parser.add_argument('--train_batch_size', type=int, help='batch size for train')
+parser.add_argument('--val_batch_size', type=int, help='batch size for val')
+args = parser.parse_args()
+
+## tensorboard
 train_iter = 0
-log_dir = "tensorboard/hrnet_w48_test"
+log_dir = f"tensorboard/{args.model}_loc"
 writer = SummaryWriter(log_dir)
 
 def validate(model, data_loader, epoch):
@@ -46,7 +56,7 @@ def validate(model, data_loader, epoch):
                 dices.append(dice(pre_mask[j], mask_pred[j] > _thr))
 
     dice_avg = np.mean(dices)
-    writer.add_scalar('dice/val', dice_avg, epoch)
+    writer.add_scalar('dice/val', dice_avg, epoch+1)
     print("Val Dice: {}".format(dice_avg))
 
     return dice_avg
@@ -58,10 +68,11 @@ def evaluate(data_loader, best_score, model, snapshot_name, current_epoch):
     d = validate(model, data_loader, current_epoch)
     if d > best_score:
         torch.save({
-            'epoch': current_epoch + 1,
+            'epoch': current_epoch,
             'state_dict': model.state_dict(),
             'best_score': d,
-            }, os.path.join('checkpoints', snapshot_name + '_{}'.format(d)))
+            }, os.path.join('checkpoints', f'{snapshot_name}_{current_epoch}_{round(d, 3)}')
+        )
         best_score = d
 
     print('score: {} best_score: {}'.format(d, best_score))
@@ -122,16 +133,12 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
 def main(): 
     cudnn.benchmark = True
 
-    batch_size = 2
-    val_batch_size = 4
+    batch_size = args.train_batch_size
+    val_batch_size = args.val_batch_size
 
-    snapshot_name = "hrnet_w48_loc"
+    snapshot_name = f"{args.model}_loc"
     data_path = 'data/train/'
     folds_csv = 'folds.csv'
-    cfg_file = 'configs/hrnet_w48_train.yaml'
-    with open(cfg_file) as f:
-        cfg_str = f.read()
-    cfg = yaml.load(cfg_str, Loader=yaml.SafeLoader)
 
     np.random.seed(123)
     random.seed(123)
@@ -142,22 +149,20 @@ def main():
     train_data_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=5, shuffle=True, pin_memory=False, drop_last=True)
     val_data_loader = DataLoader(val_dataset, batch_size=val_batch_size, num_workers=5, shuffle=False, pin_memory=False)
 
-    model = get_seg_model(cfg).cuda()
+    model = build_loc_model(args.model).cuda()
 
     optimizer = AdamW(model.parameters(), lr=0.00015, weight_decay=1e-6)
 
     model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
 
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], gamma=0.5)
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9, 12, 15, 18], gamma=0.5)
 
     seg_loss = ComboLoss({'dice': 1.0, 'focal': 10.0}, per_image=False).cuda()
 
-    best_score = 0
-    _cnt = -1
+    best_score = evaluate(val_data_loader, 0, model, snapshot_name, -1)
     torch.cuda.empty_cache()
-    for epoch in range(16):
+    for epoch in range(args.epoch):
         train_epoch(epoch, seg_loss, model, optimizer, scheduler, train_data_loader)
-        _cnt += 1
         torch.cuda.empty_cache()
         best_score = evaluate(val_data_loader, best_score, model, snapshot_name, epoch)
 

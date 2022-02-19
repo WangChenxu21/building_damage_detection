@@ -298,8 +298,9 @@ class FocalLossWithDice(nn.Module):
         d_loss = soft_dice_loss_mc(outputs, targets, self.num_classes, ignore_index=self.ignore_index, ohpm=self.ohpm, ohpm_pixels=self.ohpm_pixels)
         non_ignored = targets != 255
         loc = soft_dice_loss(1 - probas[:, 0, ...][non_ignored], targets[non_ignored])
+        return self.ce_weight * ce_loss
         
-        return self.ce_weight * ce_loss + self.d_weight * d_loss + self.d_weight * loc
+        #return self.ce_weight * ce_loss + self.d_weight * d_loss + self.d_weight * loc
 
 
 def soft_dice_loss_mc(outputs, targets, num_classes, per_image=False, only_existing_classes=False, ignore_index=255,

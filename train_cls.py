@@ -4,12 +4,15 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 import random
 
+import cv2
 import yaml
 import numpy as np
 from tqdm import tqdm
 from apex import amp
+import matplotlib.pyplot as plt
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.backends import cudnn
 import torch.optim.lr_scheduler as lr_scheduler
@@ -18,13 +21,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 from utils import dice, AverageMeter
 from adamw import AdamW
-from dataset import xBDDataset
-from models.hrnet import get_seg_model_double
-from losses import dice_round, ComboLoss, FocalLossWithDice
+from dataset import xBDDataset, xBDDatasetTest
+from models.models import SeResNext50_Unet_Double
+from losses import dice_round, ComboLoss, FocalLossWithDice, FocalLoss2d
+from xview_metric import XviewMetrics
 
 
 train_iter = 0
-log_dir = "tensorboard/hrnet_w48_cls"
+log_dir = "tensorboard/seresnext50_unet_cls"
 writer = SummaryWriter(log_dir)
 
 def validate(model, data_loader, epoch, predictions_dir):
@@ -43,25 +47,34 @@ def validate(model, data_loader, epoch, predictions_dir):
 
             out = model(pre_image, post_image)
 
-            damage_preds = torch.softmax(output, dim=1).cpu().numpy()
-            loc_preds = 1 - torch.sigmoid(out[:, 0, ...])
+            damage_preds = out.cpu().numpy()
+#            damage_preds = torch.softmax(out, dim=1).cpu().numpy()
 
-            for i in range(output.shape[0]):
+            damage_gts = np.array(sample["post_mask"], dtype=np.uint8)
+            mask_gts = np.array(sample["pre_mask"], dtype=np.uint8)
+
+            for i in range(out.shape[0]):
                 damage_pred = damage_preds[i]
                 damage_pred = np.argmax(damage_pred, axis=0)
-                loc_pred = loc_preds[i]
-                loc_pred = (loc_pred[i] > 0.5)
-                print('damage_pred:', damage_pred.shape)
-                print('loc_pred:', loc_pred.shape)
-                assert False
 
-                cv2.imwrite(os.path.join(preds_dir, "test_damage_" + sample["img_name"][i] + "_prediction.png"), argmax)
+                mask_pred = np.ones(damage_pred.shape)
+                mask_pred[damage_pred == 0] = 0
 
-    dice_avg = np.mean(dices)
-    writer.add_scalar('dice/val', dice_avg, epoch)
-    print("Val Dice: {}".format(dice_avg))
+                damage_pred = np.array(damage_pred, dtype=np.uint8)
+                mask_pred = np.array(mask_pred, dtype=np.uint8)
+                damage_gt = damage_gts[i]
+                mask_gt = mask_gts[i]
 
-    return dice_avg
+                cv2.imwrite(os.path.join(preds_dir, "test_localization_" + sample["img_name"][i] + "_prediction.png"), mask_pred)
+                cv2.imwrite(os.path.join(preds_dir, "test_damage_" + sample["img_name"][i] + "_prediction.png"), damage_pred)
+                cv2.imwrite(os.path.join(targs_dir, "test_localization_" + sample["img_name"][i] + "_target.png"), mask_gt)
+                cv2.imwrite(os.path.join(targs_dir, "test_damage_" + sample["img_name"][i] + "_target.png"), damage_gt)
+
+    d = XviewMetrics.compute_score(preds_dir, targs_dir)
+    for k, v in d.items():
+        print("{}:{}".format(k, v))
+    writer.add_scalar('score/val', d["score"], epoch)
+    return d["localization_f1"], d["score"]
 
 
 def evaluate(data_loader, best_score, model, snapshot_name, current_epoch, predictions_dir):
@@ -96,6 +109,10 @@ def train_epoch(current_epoch, damage_loss, model, optimizer, scheduler, data_lo
         out = model(pre_image, post_image)
 
         loss = damage_loss(out, post_mask)
+#        for i in range(post_mask.shape[0]):
+#            print(sample['img_name'][i])
+#            plt.imshow(post_mask[i].cpu().numpy())
+#            plt.show()
         losses.update(loss.item(), pre_image.size(0))
 
         writer.add_scalar('loss/train', losses.val, train_iter)
@@ -123,7 +140,7 @@ def train_epoch(current_epoch, damage_loss, model, optimizer, scheduler, data_lo
 def main(): 
     cudnn.benchmark = True
 
-    batch_size = 1
+    batch_size = 2
     val_batch_size = 4
 
     snapshot_name = "hrnet_w48_cls"
@@ -138,26 +155,32 @@ def main():
     np.random.seed(123)
     random.seed(123)
     
-    train_dataset = xBDDataset(data_path, 'train', 0, folds_csv) 
-    val_dataset = xBDDataset(data_path, 'val', 0, folds_csv)
+#    train_dataset = xBDDataset(data_path, 'train', 0, folds_csv) 
+#    val_dataset = xBDDataset(data_path, 'val', 0, folds_csv)
+    train_dataset = xBDDatasetTest('data_test/train/')
+    val_dataset = xBDDatasetTest('data_test/train/')
 
-    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=5, shuffle=True, pin_memory=False, drop_last=True)
+    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=5, shuffle=False, pin_memory=False, drop_last=True)
     val_data_loader = DataLoader(val_dataset, batch_size=val_batch_size, num_workers=5, shuffle=False, pin_memory=False)
 
     model = get_seg_model_double(cfg).cuda()
 
-    optimizer = AdamW(model.parameters(), lr=0.00015, weight_decay=1e-6)
+    optimizer = AdamW(model.parameters(), lr=0.0001, weight_decay=1e-6)
 
     model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
 
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], gamma=0.5)
+#    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], gamma=0.5)
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100], gamma=0.5)
 
-    loss_fn = FocalLossWithDice(5, ce_weight=2, d_weight=0.5, weight=[1, 1, 5, 3, 3]).cuda()
+
+#    loss_fn = FocalLossWithDice(5, ce_weight=2, d_weight=0.5, weight=[1, 1, 5, 3, 3]).cuda()
+    loss_fn = FocalLossWithDice(5, ce_weight=2, d_weight=0.5).cuda()
+    #loss_fn = nn.CrossEntropyLoss(torch.tensor([0., 1, 1, 1, 1]).cuda())
 
     best_score = 0
     _cnt = -1
     torch.cuda.empty_cache()
-    for epoch in range(16):
+    for epoch in range(100):
         train_epoch(epoch, loss_fn, model, optimizer, scheduler, train_data_loader)
         _cnt += 1
         torch.cuda.empty_cache()

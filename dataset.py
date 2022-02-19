@@ -197,12 +197,13 @@ if __name__ == "__main__":
     folds_csv = 'folds.csv'
 
     train_dataset = xBDDataset(data_path, "train", fold, folds_csv)
-    train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     test_dataset = xBDDatasetTest(test_data_path)
-    test_dataloader = DataLoader(test_dataset, batch_size=2, shuffle=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
-    for sample in test_dataloader:
+    for sample in train_dataloader:
         print(sample.keys())
+        print(sample['img_name'])
         print('pre_image:', sample['pre_image'].shape)
         print('post_image:', sample['post_image'].shape)
         print('pre_mask:', sample['pre_mask'].shape, np.unique(np.array(sample['pre_mask'])))
