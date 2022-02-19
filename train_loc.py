@@ -59,8 +59,8 @@ def validate(model, data_loader, epoch):
 
     dice_avg = np.mean(dices)
     iou_avg = np.mean(ious)
-    writer.add_scalar('dice/val', dice_avg, epoch+1)
-    writer.add_scalar('iou/val', iou_avg, epoch+1)
+    writer.add_scalar('val/dice', dice_avg, epoch+1)
+    writer.add_scalar('val/iou', iou_avg, epoch+1)
     print(f"Val Dice: {dice_avg}, Val IoU: {iou_avg}")
 
     return dice_avg, iou_avg
@@ -112,8 +112,8 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
         losses.update(loss.item(), pre_image.shape[0])
         dices.update(dice_sc, pre_image.shape[0])
 
-        writer.add_scalar('loss/train', losses.val, train_iter)
-        writer.add_scalar('dice/train', dices.val, train_iter)
+        writer.add_scalar('train/loss', losses.val, train_iter)
+        writer.add_scalar('train/dice', dices.val, train_iter)
         train_iter += 1
 
         iterator.set_description(
