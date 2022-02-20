@@ -148,12 +148,14 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
  
 
 def main(): 
+    global rq
+
     cudnn.benchmark = True
 
     batch_size = args.train_batch_size
     val_batch_size = args.val_batch_size
 
-    snapshot_name = f"{args.model}_{args.exp_name}_loc"
+    snapshot_name = f"{args.model}_{args.exp_name}_loc_{rq}"
     data_path = 'data/train/'
     folds_csv = 'folds.csv'
 
