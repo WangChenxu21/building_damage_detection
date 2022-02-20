@@ -2,6 +2,7 @@ import os
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
+import time
 import random
 import argparse
 import warnings
@@ -27,6 +28,7 @@ from losses import dice_round, ComboLoss
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, help='seresnext or dpn or resnet or senet')
+parser.add_argument('--exp_name', type=str, help='experiment name')
 parser.add_argument('--epoch', type=int, help='total epoch num')
 parser.add_argument('--milestones', nargs='+', type=int, help='milestones for reducing lr')
 parser.add_argument('--train_batch_size', type=int, help='batch size for train')
@@ -43,7 +45,8 @@ print(configs)
 
 ## tensorboard
 train_iter = 0
-log_dir = f"tensorboard/{args.model}_loc"
+rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
+log_dir = f"tensorboard/{args.model}_{exp_name}_loc_{rq}"
 writer = SummaryWriter(log_dir)
 
 
@@ -150,7 +153,7 @@ def main():
     batch_size = args.train_batch_size
     val_batch_size = args.val_batch_size
 
-    snapshot_name = f"{args.model}_loc"
+    snapshot_name = f"{args.model}_{args.exp_name}_loc"
     data_path = 'data/train/'
     folds_csv = 'folds.csv'
 
