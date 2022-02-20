@@ -25,9 +25,8 @@ from dataset import xBDDataset
 from builder import build_loc_model
 from losses import dice_round, ComboLoss
 
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, help='seresnext50 or dpn92 or res34 or senet154')
+parser.add_argument('--model', type=str, help='seresnext or dpn or resnet or senet')
 parser.add_argument('--epoch', type=int, help='total epoch num')
 parser.add_argument('--milestones', nargs='+', type=int, help='milestones for reducing lr')
 parser.add_argument('--train_batch_size', type=int, help='batch size for train')
@@ -46,6 +45,7 @@ print(configs)
 train_iter = 0
 log_dir = f"tensorboard/{args.model}_loc"
 writer = SummaryWriter(log_dir)
+
 
 def validate(model, data_loader, epoch):
     dices = []
@@ -118,7 +118,6 @@ def train_epoch(current_epoch, seg_loss, model, optimizer, scheduler, data_loade
             _probs = torch.sigmoid(out[:, 0, ...])
 #            dice_sc = 1 - dice_round(_probs, pre_mask[:, 0, ...])
             dice_sc = 1 - dice_round(_probs, pre_mask)
-
 
         losses.update(loss.item(), pre_image.shape[0])
         dices.update(dice_sc, pre_image.shape[0])
