@@ -46,7 +46,7 @@ print(configs)
 ## tensorboard
 train_iter = 0
 rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
-log_dir = f"tensorboard/{args.model}_{exp_name}_loc_{rq}"
+log_dir = f"tensorboard/{args.model}_{args.exp_name}_loc_{rq}"
 writer = SummaryWriter(log_dir)
 
 
