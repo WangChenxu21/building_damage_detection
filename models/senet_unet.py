@@ -133,9 +133,9 @@ class SeNet_Double(nn.Module):
 
         return dec10
 
-    def forward(self, x):
-        dec10_0 = self.forward1(x[:, :3, :, :])
-        dec10_1 = self.forward1(x[:, 3:, :, :])
+    def forward(self, x1, x2):
+        dec10_0 = self.forward1(x1)
+        dec10_1 = self.forward1(x2)
 
         dec10 = torch.cat([dec10_0, dec10_1], 1)
 
