@@ -76,15 +76,6 @@ def validate(model, data_loader, epoch, predictions_dir):
             damage_gts = np.array(sample["post_mask"], dtype=np.uint8)
             mask_gts = np.array(sample["pre_mask"], dtype=np.uint8)
             
-            ## metrics
-            pred = torch.argmax(out, dim=1)
-            tp, fp, fn, tn = metrics.get_stats(pred.cpu(), sample["post_mask"], mode='multiclass', num_classes=5)
-            iou = metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-            f1 = metrics.f1_score(tp, fp, fn, tn, reduction="micro")
-            accuracy = metrics.accuracy(tp, fp, fn, tn, reduction="macro")
-            recall = metrics.recall(tp, fp, fn, tn, reduction="micro-imagewise")
-            print('iou:', iou, 'f1:', f1, 'accuracy:', accuracy, 'recall:', recall)
-
             for i in range(out.shape[0]):
                 damage_pred = damage_preds[i]
                 damage_pred = np.argmax(damage_pred, axis=0)
@@ -103,9 +94,9 @@ def validate(model, data_loader, epoch, predictions_dir):
                 cv2.imwrite(os.path.join(targs_dir, "test_damage_" + sample["img_name"][i] + "_target.png"), damage_gt)
 
     d = XviewMetrics.compute_score(preds_dir, targs_dir)
-    print('keys:', d.keys())
     for k, v in d.items():
         print("{}:{}".format(k, v))
+        logging.info("{}:{}".format(k, v))
     writer.add_scalar('val/score', d["score"], epoch)
     return d["localization_f1"], d["score"]
 
