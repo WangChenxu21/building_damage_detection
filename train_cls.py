@@ -96,7 +96,7 @@ def validate(model, data_loader, epoch, predictions_dir):
     d = XviewMetrics.compute_score(preds_dir, targs_dir)
     for k, v in d.items():
         print("{}:{}".format(k, v))
-        logging.info("{}:{}".format(k, v))
+        logger.info("{}:{}".format(k, v))
     writer.add_scalar('val/score', d["score"], epoch)
     return d["localization_f1"], d["score"]
 
