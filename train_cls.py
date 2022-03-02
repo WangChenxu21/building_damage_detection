@@ -97,7 +97,7 @@ def validate(model, data_loader, epoch, predictions_dir):
     for k, v in d.items():
         print("{}:{}".format(k, v))
         logger.info("{}:{}".format(k, v))
-    writer.add_scalar('val/score', d["score"], epoch)
+    writer.add_scalar('val/score', d["score"], epoch+1)
     return d["localization_f1"], d["score"]
 
 
