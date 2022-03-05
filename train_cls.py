@@ -107,11 +107,12 @@ def evaluate(data_loader, best_score, model, snapshot_name, current_epoch, predi
     dice, xview_score = validate(model, data_loader, current_epoch, predictions_dir)
     if xview_score > best_score:
         torch.save({
-            'epoch': current_epoch + 1,
+            'epoch': current_epoch,
             'state_dict': model.state_dict(),
             'dice': dice,
             'xview_score': xview_score,
-            }, os.path.join('checkpoints', snapshot_name + '_{}'.format(xview_score)))
+            }, os.path.join('checkpoints', f'{snapshot_name}_{current_epoch}_{round(xview_score, 3)}')
+        )
         best_score = xview_score
 
     logger.info(f"dice: {dice}, xview_score: {xview_score}, best_score: {best_score}")
