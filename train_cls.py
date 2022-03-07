@@ -30,13 +30,14 @@ from losses import dice_round, ComboLoss, FocalLossWithDice
 from xview_metric import XviewMetrics
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, help='seresnext or dpn or resnet or senet')
-parser.add_argument('--exp_name', type=str, help='experiment name')
-parser.add_argument('--epoch', type=int, help='total epoch num')
-parser.add_argument('--milestones', nargs='+', type=int, help='milestones for reducing lr')
-parser.add_argument('--train_batch_size', type=int, help='batch size for train')
-parser.add_argument('--val_batch_size', type=int, help='batch size for val')
-parser.add_argument('--loc_ckpt', type=str, help='checkpoint for localization')
+parser.add_argument('--model', type=str, default='seresnext', help='seresnext or dpn or resnet or senet')
+parser.add_argument('--exp_name', type=str, default='test', help='experiment name')
+parser.add_argument('--epoch', type=int, default=10, help='total epoch num')
+parser.add_argument('--milestones', nargs='+', default=[1, 3, 5, 7, 9], type=int, help='milestones for reducing lr')
+parser.add_argument('--train_batch_size', type=int, default=12, help='batch size for train')
+parser.add_argument('--val_batch_size', type=int, default=4, help='batch size for val')
+parser.add_argument('--resume', action='store_true', default=False, help='whether to use loc_ckpt')
+parser.add_argument('--loc_ckpt', type=str, default=None, help='checkpoint for localization')
 args = parser.parse_args()
 
 ## logger
@@ -205,14 +206,16 @@ def main():
 
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9, 12, 15, 18], gamma=0.5)
 
-    checkpoint = torch.load(args.loc_ckpt, map_location='cpu')
-    loaded_dict = checkpoint['state_dict']
-    sd = model.state_dict()
-    for k in model.state_dict():
-        if k in loaded_dict and sd[k].size() == loaded_dict[k].size():
-            sd[k] = loaded_dict[k]
-    loaded_dict = sd
-    model.load_state_dict(loaded_dict)
+    if args.resume:
+        print(f'now loading checkpoint {args.loc_ckpt}...')
+        checkpoint = torch.load(args.loc_ckpt, map_location='cpu')
+        loaded_dict = checkpoint['state_dict']
+        sd = model.state_dict()
+        for k in model.state_dict():
+            if k in loaded_dict and sd[k].size() == loaded_dict[k].size():
+                sd[k] = loaded_dict[k]
+        loaded_dict = sd
+        model.load_state_dict(loaded_dict)
     
     model = model.cuda()
 
