@@ -22,11 +22,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 import metrics
 from logger import create_logger
-from utils import dice, iou, AverageMeter
+from utils import AverageMeter
 from adamw import AdamW
 from dataset import xBDDataset
 from builder import build_cls_model
-from losses import dice_round, ComboLoss, FocalLossWithDice
+from losses import FocalLossWithDice
 from xview_metric import XviewMetrics
 
 parser = argparse.ArgumentParser()
@@ -64,8 +64,6 @@ def validate(model, data_loader, epoch, predictions_dir):
 
     with torch.no_grad():
         for sample in tqdm(data_loader):
-            pre_mask = sample["pre_mask"].numpy()
-            post_mask = sample["post_mask"].numpy()
             pre_image = sample["pre_image"].cuda(non_blocking=True)
             post_image = sample["post_image"].cuda(non_blocking=True)
 
@@ -99,6 +97,12 @@ def validate(model, data_loader, epoch, predictions_dir):
         print("{}:{}".format(k, v))
         logger.info("{}:{}".format(k, v))
     writer.add_scalar('val/score', d["score"], epoch+1)
+    writer.add_scalar('val/damage_f1', d["damage_f1"], epoch+1)
+    writer.add_scalar('val/localization_f1', d["localization_f1"], epoch+1)
+    writer.add_scalar('val/damage_f1_no_damage', d["damage_f1_no_damage"], epoch+1)
+    writer.add_scalar('val/damage_f1_minor_damage', d["damage_f1_minor_damage"], epoch+1)
+    writer.add_scalar('val/damage_f1_major_damage', d["damage_f1_major_damage"], epoch+1)
+    writer.add_scalar('val/damage_f1_destroyed', d["damage_f1_destroyed"], epoch+1)
     return d["localization_f1"], d["score"]
 
 
@@ -154,7 +158,7 @@ def train_epoch(current_epoch, damage_loss, model, optimizer, scheduler, data_lo
         loss = damage_loss(out, post_mask)
         losses.update(loss.item(), pre_image.size(0))
 
-        writer.add_scalar('loss/train', losses.val, train_iter)
+        writer.add_scalar('train/loss', losses.val, train_iter)
         train_iter += 1
 
         logger.info(
@@ -220,8 +224,6 @@ def main():
     model = model.cuda()
 
     loss_fn = FocalLossWithDice(5, ce_weight=2, d_weight=0.5, weight=[1, 1, 5, 3, 3]).cuda()
-    # loss_fn = FocalLossWithDice(5, ce_weight=2, d_weight=0.5).cuda()
-    # loss_fn = nn.CrossEntropyLoss(torch.tensor([0., 1, 1, 1, 1]).cuda())
 
     best_score = 0
     best_score = evaluate(val_data_loader, best_score, model, snapshot_name, -1, predictions_dir)
