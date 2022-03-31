@@ -14,6 +14,7 @@ from tqdm import tqdm
 from apex import amp
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.backends import cudnn
 import torch.optim.lr_scheduler as lr_scheduler
@@ -25,7 +26,7 @@ from logger import create_logger
 from utils import AverageMeter
 from adamw import AdamW
 from dataset import xBDDataset
-from builder import build_cls_model
+from builder import build_cls_hierarchy_model, build_cls_model
 from losses import FocalLossWithDice
 from xview_metric import XviewMetrics
 
@@ -38,6 +39,13 @@ parser.add_argument('--train_batch_size', type=int, default=12, help='batch size
 parser.add_argument('--val_batch_size', type=int, default=4, help='batch size for val')
 parser.add_argument('--resume', action='store_true', default=False, help='whether to use loc_ckpt')
 parser.add_argument('--loc_ckpt', type=str, default=None, help='checkpoint for localization')
+
+## 层次化学习
+parser.add_argument('--hierarchy', action='store_true', default=False, help='whether to use hierarchical encoder')
+parser.add_argument('--hierarchy_path', type=str, default='hierarchy_data/disaster.taxonomy', help='a file that records parent-child relationship')
+parser.add_argument('--hierarchy_prob_json', type=str, default='hierarchy_data/disaster_prob.json', help='a json which records conversion probability between parents and childern')
+parser.add_argument('--hierarchical_encoder', type=str, default='GCN', help='TreeLSTM or GCN')
+parser.add_argument('--hierarchical_direction', type=str, default='bi_direction', help='bottom_up or top_down or bi_direction')
 args = parser.parse_args()
 
 ## logger
@@ -70,7 +78,6 @@ def validate(model, data_loader, epoch, predictions_dir):
             out = model(pre_image, post_image)
 
             damage_preds = out.cpu().numpy()
-#            damage_preds = torch.softmax(out, dim=1).cpu().numpy()
 
             damage_gts = np.array(sample["post_mask"], dtype=np.uint8)
             mask_gts = np.array(sample["pre_mask"], dtype=np.uint8)
@@ -202,7 +209,10 @@ def main():
     train_data_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=5, shuffle=True, pin_memory=False, drop_last=True)
     val_data_loader = DataLoader(val_dataset, batch_size=val_batch_size, num_workers=5, shuffle=False, pin_memory=False)
 
-    model = build_cls_model(args.model).cuda()
+    if args.hierarchy:
+        model = build_cls_hierarchy_model(args.model, args.hierarchy_path, args.hierarchy_prob_json, args.hierarchical_encoder).cuda()
+    else:
+        model = build_cls_model(args.model).cuda()
 
     optimizer = AdamW(model.parameters(), lr=0.0001, weight_decay=1e-6)
 

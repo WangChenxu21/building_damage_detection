@@ -8,3 +8,4 @@ tensorboard/
 *bak
 logs/
 *__pycache__*
+hierarchy_data/

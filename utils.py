@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 
+
 #### Augmentations
 def shift_image(img, shift_pnt):
     M = np.float32([[1, 0, shift_pnt[0]], [0, 1, shift_pnt[1]]])
