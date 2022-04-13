@@ -198,7 +198,7 @@ def main():
     snapshot_name = f"{args.model}_{args.exp_name}_cls_{rq}"
     data_path = 'data/train/'
     folds_csv = 'folds.csv'
-    predictions_dir = 'predictions_val/'
+    predictions_dir = f'predictions_val_{args.model}/'
 
     np.random.seed(123)
     random.seed(123)
