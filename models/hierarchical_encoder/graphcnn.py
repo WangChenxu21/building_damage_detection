@@ -15,6 +15,7 @@ class HierarchyGCN(nn.Module):
                  in_matrix,
                  out_matrix,
                  in_dim,
+                 direction,
                  dropout=0.0,
                  device=torch.device('cpu'),
                  root=None,

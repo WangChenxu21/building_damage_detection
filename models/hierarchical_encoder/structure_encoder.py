@@ -67,6 +67,7 @@ class StructureEncoder(nn.Module):
                  label_map,
                  graph_model_type,
                  in_dim,
+                 direction,
                  dropout):
         """
         Structure Encoder module
@@ -104,6 +105,7 @@ class StructureEncoder(nn.Module):
                                                     in_matrix=self.node_prob_from_child,
                                                     out_matrix=self.node_prob_from_parent,
                                                     in_dim=in_dim,
+                                                    direction=direction,
                                                     dropout=dropout,
                                                     device='cuda',
                                                     root=self.root,

@@ -35,10 +35,12 @@ class WeightedHierarchicalTreeLSTMEndtoEnd(nn.Module):
         """
         super(WeightedHierarchicalTreeLSTMEndtoEnd, self).__init__()
         self.root = root
-        mem_dim = in_dim // 2
+        # mem_dim = in_dim // 2
+        mem_dim = in_dim
         self.hierarchical_label_dict = hierarchical_label_dict
         self.label_trees = label_trees
         self.tree_lstms = []
+        self.direction = direction
         # child-sum
         if direction == 'bi_direction' or direction == 'bottom_up':
             self.bottom_up_lstm = WeightedChildSumTreeLSTMEndtoEnd(in_dim, mem_dim, num_nodes, in_matrix, device)
@@ -69,10 +71,17 @@ class WeightedHierarchicalTreeLSTMEndtoEnd(nn.Module):
         for i in nodes_keys:
             if i == 0:  # should be root.idx
                 continue
-            tree_label_feature.append(
-                torch.cat((self.node_dropout(self.label_trees[i].bottom_up_state[1].view(inputs.shape[1], 1, self.mem_dim)),
-                           self.node_dropout(self.label_trees[i].top_down_state[1].view(inputs.shape[1], 1, self.mem_dim))),
-                          2))
+            if self.direction == 'bi_direction':
+                tree_label_feature.append(
+                    torch.cat((self.node_dropout(self.label_trees[i].bottom_up_state[1].view(inputs.shape[1], 1, self.mem_dim)),
+                               self.node_dropout(self.label_trees[i].top_down_state[1].view(inputs.shape[1], 1, self.mem_dim))),
+                              2))
+            elif self.direction == 'top_down':
+                tree_label_feature.append(self.node_dropout(self.label_trees[i].top_down_state[1].view(inputs.shape[1],
+                    1, self.mem_dim)))
+            elif self.direction == 'bottom_up':
+                tree_label_feature.append(self.node_dropout(self.label_trees[i].bottom_up_state[1].view(inputs.shape[1],
+                    1, self.mem_dim)))
         label_feature = torch.cat(tree_label_feature, 1)  # label_feature: batch_size, num_nodes, 2 * node_dimension
 
         return label_feature

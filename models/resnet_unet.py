@@ -170,6 +170,7 @@ class ResNet_Double_Hierarchy(nn.Module):
                  label_map,
                  graph_model_type,
                  in_dim,
+                 direction,
                  dropout=0,
                  pretrained='imagenet'):
         super(ResNet_Double_Hierarchy, self).__init__()
@@ -189,7 +190,9 @@ class ResNet_Double_Hierarchy(nn.Module):
         
         self.res = nn.Conv2d(decoder_filters[-5] * 2, 7, 1, stride=1, padding=0)
 
-        self.structure_encoder = StructureEncoder(hierarchy_path, hierarchy_prob_json, label_map, graph_model_type, in_dim, dropout)
+        self.structure_encoder = StructureEncoder(hierarchy_path,
+                hierarchy_prob_json, label_map, graph_model_type, in_dim,
+                direction, dropout)
 
         self._initialize_weights()
 

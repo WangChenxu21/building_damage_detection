@@ -180,6 +180,7 @@ class Dpn_Double_Hierarchy(nn.Module):
                  label_map,
                  graph_model_type,
                  in_dim,
+                 direction,
                  dropout=0,
                  pretrained='imagenet+5k'):
         super(Dpn_Double_Hierarchy, self).__init__()
@@ -197,7 +198,9 @@ class Dpn_Double_Hierarchy(nn.Module):
         self.conv9_2 = nn.Sequential(ConvRelu(decoder_filters[-4]+encoder_filters[-5], decoder_filters[-4]), SCSEModule(decoder_filters[-4], reduction=16, concat=True))
         self.conv10 = ConvRelu(decoder_filters[-4] * 2, decoder_filters[-5])
 
-        self.structure_encoder = StructureEncoder(hierarchy_path, hierarchy_prob_json, label_map, graph_model_type, in_dim, dropout)
+        self.structure_encoder = StructureEncoder(hierarchy_path,
+                hierarchy_prob_json, label_map, graph_model_type, in_dim,
+                direction, dropout)
 
         self.res = nn.Conv2d(decoder_filters[-5] * 2, 7, 1, stride=1, padding=0)
 

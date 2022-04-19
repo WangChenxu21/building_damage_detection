@@ -210,7 +210,9 @@ def main():
     val_data_loader = DataLoader(val_dataset, batch_size=val_batch_size, num_workers=5, shuffle=False, pin_memory=False)
 
     if args.hierarchy:
-        model = build_cls_hierarchy_model(args.model, args.hierarchy_path, args.hierarchy_prob_json, args.hierarchical_encoder).cuda()
+        model = build_cls_hierarchy_model(args.model, args.hierarchy_path,
+                args.hierarchy_prob_json, args.hierarchical_encoder,
+                args.hierarchical_direction).cuda()
     else:
         model = build_cls_model(args.model).cuda()
 
