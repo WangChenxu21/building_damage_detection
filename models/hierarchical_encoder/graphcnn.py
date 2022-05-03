@@ -43,6 +43,7 @@ class HierarchyGCN(nn.Module):
             HierarchyGCNModule(num_nodes,
                                in_matrix, out_matrix,
                                in_dim,
+                               direction,
                                dropout,
                                device))
 
@@ -53,8 +54,14 @@ class HierarchyGCN(nn.Module):
 class HierarchyGCNModule(nn.Module):
     def __init__(self,
                  num_nodes,
-                 in_adj, out_adj,
-                 in_dim, dropout, device, in_arc=True, out_arc=True,
+                 in_adj, 
+                 out_adj,
+                 in_dim, 
+                 direction,
+                 dropout, 
+                 device, 
+                 in_arc=True, 
+                 out_arc=True,
                  self_loop=True):
         """
         module of Hierarchy-GCN
@@ -75,6 +82,8 @@ class HierarchyGCNModule(nn.Module):
         self.out_arc = out_arc
         self.in_arc = in_arc
         self.device = device
+        self.direction = direction
+        print('** direction **', self.direction)
         assert in_arc or out_arc
         #  bottom-up child sum
         in_prob = in_adj
@@ -125,11 +134,19 @@ class HierarchyGCNModule(nn.Module):
         out_gate_ = out_gate_ + self.out_bias_gate
         out_ = out_ * F.sigmoid(out_gate_)
         out_ = self.dropout(out_)
-        message_ += out_
+        # message_ += out_
 
         loop_gate = torch.matmul(h_, self.loop_gate)
         loop_ = h_ * F.sigmoid(loop_gate)
         loop_ = self.dropout(loop_)
         message_ += loop_
+
+        if self.direction == 'top_down':
+            message_ += out_
+        elif self.direction == 'bottom_up':
+            message_ += in_
+        elif self.direction == 'bi_direction':
+            message_ += out_
+            message_ += in_
 
         return self.activation(message_)

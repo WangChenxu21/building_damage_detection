@@ -134,6 +134,11 @@ class WeightedChildSumTreeLSTMEndtoEnd(nn.Module):
         c = torch.mul(i, u) + torch.sum(fc, dim=0, keepdim=True)
         h = torch.mul(o, F.tanh(c))
 
+        print('child_c:', child_c.shape)
+        print('child_h:', child_h.shape)
+        print('c:', c.shape)
+        print('h:', h.shape)
+
         return c, h
 
     def forward(self, tree, inputs):
@@ -162,7 +167,7 @@ class WeightedChildSumTreeLSTMEndtoEnd(nn.Module):
 class WeightedTopDownTreeLSTMEndtoEnd(nn.Module):
     def __init__(self, in_dim, mem_dim,
                  num_nodes=-1, prob=None,
-                 device=torch.device('cpu')):
+                 device=torch.device('cuda')):
         """
         Top-Down variant for hierarchy-structure
         Top-Down TreeLSTM paper: Zhang, X., Lu, L., & Lapata, M. (2015). Top-down tree long short-term memory networks.
@@ -177,12 +182,12 @@ class WeightedTopDownTreeLSTMEndtoEnd(nn.Module):
         super(WeightedTopDownTreeLSTMEndtoEnd, self).__init__()
         self.in_dim = in_dim
         self.mem_dim = mem_dim
-        self.ioux = nn.Linear(self.in_dim, 3 * self.mem_dim)
-        self.iouh = nn.Linear(self.mem_dim, 3 * self.mem_dim)
-        self.fx = nn.Linear(self.in_dim, self.mem_dim)
-        self.fh = nn.Linear(self.mem_dim, self.mem_dim)
-        self.node_transformation = torch.nn.ModuleList()
-        self.node_transformation_decompostion = torch.nn.ModuleList()
+        # self.ioux = nn.Linear(self.in_dim, 3 * self.mem_dim)
+        # self.iouh = nn.Linear(self.mem_dim, 3 * self.mem_dim)
+        # self.fx = nn.Linear(self.in_dim, self.mem_dim)
+        # self.fh = nn.Linear(self.mem_dim, self.mem_dim)
+        # self.node_transformation = torch.nn.ModuleList()
+        # self.node_transformation_decompostion = torch.nn.ModuleList()
         self.prob = torch.Tensor(prob).to(device)
         self.prob = Parameter(self.prob)
 
@@ -196,14 +201,24 @@ class WeightedTopDownTreeLSTMEndtoEnd(nn.Module):
         :return: c ( current state ) -> torch.FloatTensor (1, mem_dim),
                  h ( hidden state ) -> torch.FloatTensor (1, mem_dim)
         """
-        iou = self.ioux(inputs) + self.iouh(parent_h)
-        i, o, u = torch.split(iou, iou.size(2) // 3, dim=2)
-        i, o, u = F.sigmoid(i), F.sigmoid(o), F.tanh(u)
+        # iou = self.ioux(inputs) + self.iouh(parent_h)
+        # i, o, u = torch.split(iou, iou.size(2) // 3, dim=2)
+        # i, o, u = F.sigmoid(i), F.sigmoid(o), F.tanh(u)
 
-        f = F.sigmoid(self.fh(parent_h) + self.fx(inputs).repeat(len(parent_h), 1, 1))
-        fc = torch.mul(f, parent_c)
-        c = torch.mul(i, u) + torch.sum(fc, dim=0, keepdim=True)
-        h = torch.mul(o, F.tanh(c))
+        # f = F.sigmoid(self.fh(parent_h) + self.fx(inputs).repeat(len(parent_h), 1, 1))
+        # fc = torch.mul(f, parent_c)
+        # c = torch.mul(i, u) + torch.sum(fc, dim=0, keepdim=True)
+        # h = torch.mul(o, F.tanh(c))
+
+        c = inputs.unsqueeze(dim=0) + parent_c
+        h = inputs.unsqueeze(dim=0) + parent_h
+
+        # print('inputs:', inputs.shape)
+        # print('parent_c:', parent_c.shape)
+        # print('parent_h:', parent_h.shape)
+        # # print('iou:', iou.shape)
+        # print('c:', c.shape)
+        # print('h:', h.shape)
 
         return c, h
 
