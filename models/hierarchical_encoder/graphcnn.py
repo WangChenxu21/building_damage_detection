@@ -118,12 +118,18 @@ class HierarchyGCNModule(nn.Module):
         """
         h_ = inputs  # batch, N, in_dim
         message_ = torch.zeros_like(h_).to(self.device)  # batch, N, in_dim
-        h_in_ = torch.matmul(self.origin_adj * self.adj_matrix, h_)  # batch, N, in_dim
+        # h_in_ = torch.matmul(self.origin_adj * self.adj_matrix, h_)  # batch, N, in_dim
+        # in_ = h_in_ + self.edge_bias
+        # in_ = in_
+        # # N,1,dim
+        # in_gate_ = torch.matmul(h_, self.gate_weight)
+        # # N, 1
+        # in_gate_ = in_gate_ + self.bias_gate
+        # in_ = in_ * F.sigmoid(in_gate_)
+        # in_ = self.dropout(in_)
+        h_in_ = torch.matmul(self.origin_adj.transpose(0, 1) * self.adj_matrix, h_)
         in_ = h_in_ + self.edge_bias
-        in_ = in_
-        # N,1,dim
         in_gate_ = torch.matmul(h_, self.gate_weight)
-        # N, 1
         in_gate_ = in_gate_ + self.bias_gate
         in_ = in_ * F.sigmoid(in_gate_)
         in_ = self.dropout(in_)
